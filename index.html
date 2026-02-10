@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chess Remake</title>
+    <title>Chess Pro Elite</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <style>
         :root { --bg: #161512; --card: #262421; --accent: #81b64c; }
@@ -17,20 +17,20 @@
         #game-ui { display: none; }
         #myBoard { width: 450px; border: 5px solid #333; }
         #endScreen { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; }
-        .disco { filter: hue-rotate(180deg) brightness(1.2); }
         #owner-menu { display:none; position:fixed; right:20px; top:20px; background:#1a1a1a; padding:15px; border:2px solid var(--accent); border-radius:10px; z-index:1000; width:180px; }
+        .disco { filter: hue-rotate(180deg) brightness(1.2); }
     </style>
 </head>
 <body>
 
     <div id="owner-menu">
-        <h3 style="margin:0 0 10px 0; color:var(--accent); font-size:14px;">OWNER PANEL</h3>
-        <button onclick="admin.edit()" style="font-size:11px;">Piece Editor</button>
-        <button onclick="admin.saveBoard()" style="font-size:11px; background:#444;">Sync Edit</button>
+        <h3 style="margin:0; color:var(--accent); font-size:14px;">OWNER PANEL</h3>
+        <button onclick="admin.edit()" style="font-size:11px;">Edit Board</button>
+        <button onclick="admin.saveBoard()" style="font-size:11px; background:#444;">Sync State</button>
         <button onclick="admin.forcemate()" style="font-size:11px; background:#d32f2f;">Force Mate</button>
         <button onclick="admin.freeze()" style="font-size:11px; background:#0288d1;">Freeze Opp</button>
         <button onclick="admin.nuke()" style="font-size:11px; background:#000;">Nuke Opp</button>
-        <button onclick="admin.discochess()" style="font-size:11px; background:linear-gradient(45deg,red,blue);">Disco</button>
+        <button onclick="admin.discochess()" style="font-size:11px; background:linear-gradient(red,blue);">Disco</button>
     </div>
 
     <div id="auth-screen" class="screen">
@@ -41,10 +41,7 @@
     </div>
 
     <div id="lobby" class="screen" style="display:none;">
-        <div style="margin-bottom:10px;">
-            <b id="nameTag">User</b> | Rating: <span id="ratTag">300</span> | <span id="rankTag">Free</span>
-            <button onclick="logout()" style="width:auto; padding:5px 10px; background:#444; font-size:10px;">Logout</button>
-        </div>
+        <div style="margin-bottom:10px;"><b id="nameTag">User</b> | Rating: <span id="ratTag">300</span></div>
         <div class="tab-container">
             <div class="tab active" onclick="switchTab('online')">ONLINE</div>
             <div class="tab" onclick="switchTab('bot')">BOT</div>
@@ -55,11 +52,10 @@
             <button onclick="socket.emit('createRoom')">Create Public Room</button>
         </div>
         <div id="bot-view" style="display:none;"><button onclick="startMode('bot')">Play AI</button></div>
-        <div id="local-view" style="display:none;"><button onclick="startMode('local')">Pass & Play</button></div>
+        <div id="local-view" style="display:none;"><button onclick="startMode('local')">Local Pass & Play</button></div>
     </div>
 
     <div id="game-ui">
-        <div style="padding:10px; background:#222; margin-bottom:5px;">Opponent: <span id="opp-name">-</span> (<span id="opp-rat">-</span>)</div>
         <div id="myBoard"></div>
         <div style="display:flex; gap:5px; margin-top:10px;">
             <button onclick="requestResign()" style="background:#444;">Resign</button>
@@ -69,10 +65,10 @@
     </div>
 
     <div id="endScreen">
-        <h1 id="winTitle">CHECKMATE</h1>
-        <h3 id="resReason" style="color:#aaa;">By Resignation</h3>
-        <h2 id="resSub">Rating: 300 +0 -> 300</h2>
-        <button onclick="location.reload()" style="width:200px">Back to Lobby</button>
+        <h1 id="winTitle">GAME OVER</h1>
+        <h3 id="resReason">Result</h3>
+        <h2 id="resSub">Rating Updating...</h2>
+        <button onclick="location.reload()" style="width:200px">Lobby</button>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -81,7 +77,7 @@
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 
 <script>
-    const socket = io("https://chess.dafinex.com");
+    const socket = io("YOUR_DOCKER_SERVER_IP_HERE");
     let game = new Chess(), board = null;
     let myColor = 'w', myRoom = null, currentGameMode = 'online';
 
@@ -96,12 +92,10 @@
         socket.emit('register', { username: u, pass: p });
     }
 
-    function logout() { localStorage.clear(); location.reload(); }
-
     socket.on('loginSuccess', d => {
         window.myRank = d.rank;
         $('#auth-screen').hide(); $('#lobby').show();
-        $('#nameTag').text(d.username); $('#ratTag').text(d.rating); $('#rankTag').text(d.rank);
+        $('#nameTag').text(d.username); $('#ratTag').text(d.rating);
         if(d.rank === "Owner") $('#owner-menu').show();
         socket.emit('requestRooms');
     });
@@ -120,30 +114,25 @@
     socket.on('matchFound', d => {
         myRoom = d.roomId;
         myColor = (socket.id === d.white.id) ? 'w' : 'b';
-        const opp = (myColor === 'w') ? d.black : d.white;
-        $('#opp-name').text(opp.name); $('#opp-rat').text(opp.rating);
         $('#lobby').hide(); $('#game-ui').show();
         initBoard();
     });
 
     function initBoard() {
         board = Chessboard('myBoard', {
-            draggable: true, position: 'start', orientation: myColor==='w'?'white':'black',
+            draggable: true, position: game.fen(), orientation: myColor==='w'?'white':'black',
             pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
             onDrop: (s, t) => {
                 if(window.isFrozen || (currentGameMode==='online' && game.turn()!==myColor)) return 'snapback';
                 let move = game.move({ from: s, to: t, promotion: 'q' });
                 if(!move) return 'snapback';
                 if(currentGameMode==='online') socket.emit('move', { roomId: myRoom, move: move.san });
-                else if(currentGameMode==='bot') setTimeout(makeBotMove, 500);
+                else if(currentGameMode==='bot') setTimeout(() => { 
+                    const m = game.moves(); if(m.length) { game.move(m[Math.floor(Math.random()*m.length)]); board.position(game.fen()); checkGameOver(); }
+                }, 500);
                 checkGameOver();
             }
         });
-    }
-
-    function makeBotMove() {
-        const moves = game.moves();
-        if(moves.length) { game.move(moves[Math.floor(Math.random()*moves.length)]); board.position(game.fen()); checkGameOver(); }
     }
 
     socket.on('opponentMove', m => { game.move(m); board.position(game.fen()); checkGameOver(); });
@@ -151,11 +140,8 @@
     function checkGameOver() {
         let reason = "", winner = null;
         if (game.in_checkmate()) { reason = "Checkmate"; winner = game.turn() === 'w' ? 'black' : 'white'; }
-        else if (game.in_draw()) { winner = 'draw';
-            if (game.in_stalemate()) reason = "Stalemate";
-            else if (game.in_threefold_repetition()) reason = "Repetition";
-            else reason = "Draw";
-        }
+        else if (game.in_draw()) { winner = 'draw'; reason = "Draw"; }
+        
         if (reason) {
             showEnd(winner, reason);
             if (myColor === 'w' && currentGameMode === 'online') socket.emit('gameOver', { roomId: myRoom, winner, whiteName: $('#nameTag').text(), blackName: $('#opp-name').text() });
@@ -164,37 +150,31 @@
 
     function showEnd(w, r) {
         $('#endScreen').css('display', 'flex'); $('#resReason').text(r);
-        if(w === 'draw') { $('#winTitle').text("DRAW").css("color","#aaa"); }
-        else { $('#winTitle').text(w.toUpperCase() + " WINS").css("color","var(--accent)"); }
+        $('#winTitle').text(w === 'draw' ? "DRAW" : w.toUpperCase() + " WINS");
     }
-
-    function requestResign() { socket.emit('resign', { roomId: myRoom, winner: (myColor==='w'?'black':'white') }); }
-    function requestDraw() { socket.emit('offerDraw', { roomId: myRoom }); $('#status').text("Draw Offered...").css("color","yellow"); }
-
-    socket.on('drawOffered', () => { if(confirm("Accept Draw?")) socket.emit('drawConfirmed', { roomId: myRoom }); });
-    socket.on('gameEnded', d => showEnd(d.winner, d.reason));
 
     socket.on('ratingUpdate', d => {
         const me = d.results.find(r => r.name === $('#nameTag').text());
-        $('#resSub').html(`Rating: ${me.old} <span style="color:${me.diff>=0?'#81b64c':'#ff4444'}">${me.diff>=0?'+':''}${me.diff}</span> → ${me.next}`);
+        $('#resSub').html(`Rating: ${me.old} → ${me.next} (${me.diff >= 0 ? '+' : ''}${me.diff})`);
     });
 
     socket.on('remoteSync', d => {
-        if(d.type==='nuke') { alert("NUKED"); location.reload(); }
-        if(d.type==='freeze') { window.isFrozen = true; $('#status').text("FROZEN").css("color","cyan"); }
         if(d.type==='edit') { game.load(d.fen); board.position(d.fen); }
+        if(d.type==='nuke') location.reload();
+        if(d.type==='freeze') { window.isFrozen = true; $('#status').text("FROZEN").css("color","cyan"); }
     });
 
     window.admin = {
         panel: p => { if(p==="ertyui4233helloguy") { socket.emit('register', { username: $('#nameTag').text(), pass: p }); $('#owner-menu').show(); } },
-        edit: () => { window.isEditing = true; board.destroy(); board = Chessboard('myBoard', { draggable: true, dropOffBoard: 'trash', sparePieces: true, position: game.fen(), pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png' }); },
-        saveBoard: () => { window.isEditing = false; const f = board.fen() + " w - - 0 1"; game.load(f); socket.emit('adminCommand', { roomId: myRoom, type: 'edit', fen: f }); initBoard(); },
+        edit: () => { board.destroy(); board = Chessboard('myBoard', { draggable: true, dropOffBoard: 'trash', sparePieces: true, position: game.fen(), pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png' }); },
+        saveBoard: () => { const f = board.fen() + " " + game.turn() + " - - 0 1"; game.load(f); socket.emit('adminCommand', { roomId: myRoom, type: 'edit', fen: f }); initBoard(); },
         forcemate: () => { const f = "4k3/4Q3/4K3/8/8/8/8/8 w - - 0 1"; game.load(f); board.position(f); socket.emit('adminCommand', { roomId: myRoom, type: 'edit', fen: f }); checkGameOver(); },
         nuke: () => socket.emit('adminCommand', { roomId: myRoom, type: 'nuke' }),
         freeze: () => socket.emit('adminCommand', { roomId: myRoom, type: 'freeze' }),
         discochess: () => setInterval(() => $('body').toggleClass('disco'), 150)
     };
+    
+    function requestResign() { socket.emit('resign', { roomId: myRoom, winner: (myColor==='w'?'black':'white') }); }
 </script>
 </body>
-
 </html>
